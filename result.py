@@ -15,8 +15,8 @@ CORS(app)  # Enable CORS for all routes
 # Model parameters
 IMG_HEIGHT = 224
 IMG_WIDTH = 224
-CLASS_NAMES = ['cardboard', 'compost', 'glass', 'metal', 'paper', 'plastic', 'trash']
-WEIGHTS_PATH = "vgg16_final_model.h5"
+CLASS_NAMES = ['cardboard', 'compost', 'glass', 'metal', 'paper', 'plastic']
+WEIGHTS_PATH = "efficientnet_balanced_finetuned.h5"
 
 # Check if weights file exists
 if not os.path.exists(WEIGHTS_PATH):

@@ -3,35 +3,34 @@ from flask import Flask, request, jsonify
 import numpy as np
 import os
 from flask_cors import CORS  # Import CORS
+from tensorflow.keras.applications.efficientnet import preprocess_input
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS globally
 
 # Load the best available model
-MODEL_PATH = "waste_classification_model.keras"  # Change if needed
+MODEL_PATH = "efficientnet_balanced_finetuned.h5"  # Change if needed
 model = tf.keras.models.load_model(MODEL_PATH)
 
 # Load class names
-class_names = ["cardboard", "compost", "glass", "metal", "paper", "plastic", "trash"]  # Adjust if necessary
+class_names = ["cardboard", "compost", "glass", "metal", "paper", "plastic", "trash"]  # ✅ зөв
 
 # Function to process and predict image
+
 def predict_image(image_path, model):
-    img = tf.keras.preprocessing.image.load_img(image_path, target_size=(244, 244))  # Change to 244x244
+    img = tf.keras.preprocessing.image.load_img(image_path, target_size=(224, 224))
     img_array = tf.keras.preprocessing.image.img_to_array(img)
-    img_array = tf.expand_dims(img_array, 0) / 255.0  # Rescale
+    img_array = preprocess_input(img_array)  # ✅ яг model-той адил хэлбэр
+    img_array = tf.expand_dims(img_array, 0)
 
-    # Debugging: Print the shape of input data
     print(f"Input image shape: {img_array.shape}")
-
     predictions = model.predict(img_array)
-
-    # Debugging: Print raw predictions
     print(f"Raw predictions: {predictions}")
 
     predicted_class = class_names[np.argmax(predictions)]
     confidence = 100 * np.max(predictions)
-
     return predicted_class, confidence
+
 
 
 # Flask API for Image Prediction

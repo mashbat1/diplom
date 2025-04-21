@@ -1,78 +1,64 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import tensorflow as tf
+from flask import Flask, request, jsonify
 import numpy as np
-from tensorflow.keras.applications import VGG16
-from tensorflow.keras.models import Sequential
-from tensorflow.keras import layers
-from tensorflow.keras.preprocessing import image
+import cv2
 import os
+import uuid
+from flask_cors import CORS
+from tensorflow.keras.applications.efficientnet import preprocess_input
 
-# Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 
-# Model parameters
-IMG_HEIGHT = 224
-IMG_WIDTH = 224
-CLASS_NAMES = ['cardboard', 'compost', 'glass', 'metal', 'paper', 'plastic']
-WEIGHTS_PATH = "efficientnet_balanced_finetuned.h5"
+MODEL_PATH = "efficientnet_balanced_finetuned.h5"
+model = tf.keras.models.load_model(MODEL_PATH)
+CLASS_NAMES = ["cardboard", "compost", "glass", "metal", "paper", "plastic", "trash"]
 
-# Check if weights file exists
-if not os.path.exists(WEIGHTS_PATH):
-    raise FileNotFoundError(f"❌ ERROR: Weights file '{WEIGHTS_PATH}' not found!")
+IMG_SIZE = 224
+WINDOW_SIZE = 224
+STRIDE = 100
+CONFIDENCE_THRESHOLD = 0.5
 
-# Rebuild model architecture
-base_model = VGG16(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), include_top=False, weights=None)
-model = Sequential([
-    layers.Rescaling(1./255),
-    base_model,
-    layers.GlobalAveragePooling2D(),
-    layers.Dense(256, activation="relu", kernel_regularizer="l2"),
-    layers.Dropout(0.5),
-    layers.Dense(len(CLASS_NAMES), activation="softmax")
-])
+def detect_objects(image_path):
+    image = cv2.imread(image_path)
+    height, width, _ = image.shape
+    boxes = []
 
-# Build the model before loading weights
-model.build(input_shape=(None, IMG_HEIGHT, IMG_WIDTH, 3))
+    for y in range(0, height, STRIDE):
+        for x in range(0, width, STRIDE):
+            crop = image[y:min(y+WINDOW_SIZE, height), x:min(x+WINDOW_SIZE, width)]
+            if crop.shape[0] < 20 or crop.shape[1] < 20:
+                continue
+            resized = cv2.resize(crop, (IMG_SIZE, IMG_SIZE))
+            input_tensor = tf.expand_dims(resized, axis=0)
+            input_tensor = preprocess_input(input_tensor)
 
-# Load weights
-try:
-    model.load_weights(WEIGHTS_PATH)
-    print("✅ Weights successfully loaded from:", WEIGHTS_PATH)
-except Exception as e:
-    print(f"❌ ERROR loading weights: {e}")
-    exit(1)
+            preds = model.predict(input_tensor, verbose=0)[0]
+            class_idx = np.argmax(preds)
+            confidence = preds[class_idx]
 
-# Compile model
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), 
-              loss="categorical_crossentropy", 
-              metrics=["accuracy"])
+            if confidence > CONFIDENCE_THRESHOLD:
+                boxes.append({
+                    "label": CLASS_NAMES[class_idx],
+                    "confidence": float(round(confidence, 2)),
+                    "box": [int(x), int(y), int(min(x+WINDOW_SIZE, width)), int(min(y+WINDOW_SIZE, height))]
+                })
+    return boxes
 
-# Function to process and predict image
-def predict_image(img_path):
-    img = image.load_img(img_path, target_size=(IMG_HEIGHT, IMG_WIDTH))
-    img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0) / 255.0  # Normalize
-    predictions = model.predict(img_array)
-    predicted_class = CLASS_NAMES[np.argmax(predictions)]
-    confidence = 100 * np.max(predictions)
-    return predicted_class, confidence
-
-# API endpoint for image classification
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.route('/detect', methods=['POST'])
+def detect():
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    file_path = "uploaded_image.jpg"
-    file.save(file_path)
-    
-    predicted_class, confidence = predict_image(file_path)
-    
-    return jsonify({'class': predicted_class, 'confidence': f'{confidence:.2f}%'})
 
-# Run Flask server
+    file = request.files['file']
+    filename = f"temp_{uuid.uuid4().hex}.jpg"
+    filepath = os.path.join("temp", filename)
+    os.makedirs("temp", exist_ok=True)
+    file.save(filepath)
+
+    results = detect_objects(filepath)
+    os.remove(filepath)
+    return jsonify({"detections": results})
+
 if __name__ == '__main__':
     app.run(debug=True)

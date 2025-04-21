@@ -29,8 +29,8 @@ seed_everything()
 BATCH_SIZE = 32
 IMG_HEIGHT = 224
 IMG_WIDTH = 224
-EPOCHS_TL = 10
-EPOCHS_FT = 10
+EPOCHS_TL = 20
+EPOCHS_FT = 20
 LR_TL = 1e-3
 LR_FT = 1e-5
 TRAIN_DIR = "./datasets/Train"
@@ -129,7 +129,7 @@ history_ft = model.fit(train_ds, epochs=EPOCHS_FT, validation_data=val_ds, callb
 
 # ✅ Save final model
 model.load_weights("efficientnet_best.weights.h5")
-model.save("efficientnet_balanced_finetuned.h5")
+model.save("efficientnet_balanced_finetuned1.h5")
 
 # ✅ Evaluate
 

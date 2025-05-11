@@ -18,7 +18,7 @@ grpcio
 h5py
 idna
 itsdangerous
-Jinja2
+Jinja2==2.11.3
 Keras-Preprocessing
 Markdown
 MarkupSafe
